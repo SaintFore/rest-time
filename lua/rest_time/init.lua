@@ -7,6 +7,13 @@ local timer_running = false
 
 local win_id = nil
 local check_time
+local target_time
+
+local function start_timer(minutes)
+	-- os.time()返回当前时间的时间戳，单位为秒,从1970年1月1日00:00:00到现在的秒数
+	target_time = os.time() + minutes * 60
+	vim.defer_fn(check_time, minutes * 1000 * 60)
+end
 
 local function close_window()
 	if win_id and vim.api.nvim_win_is_valid(win_id) then
@@ -60,11 +67,11 @@ local function open_window()
 
 	vim.keymap.set("n", "q", function()
 		close_window()
-		vim.defer_fn(check_time, options.delay * 60 * 1000)
+		start_timer(25)
 	end, { buffer = buf, nowait = true, silent = true }) -- nowait表示不等待其他按键，silent表示不显示命令行信息
 	vim.keymap.set("n", "s", function()
 		close_window()
-		vim.defer_fn(check_time, 5 * 60 * 1000)
+		start_timer(5)
 	end, { buffer = buf, nowait = true, silent = true })
 end
 
@@ -86,6 +93,7 @@ function M.setup(opts)
 		M.stop()
 		vim.notify("Rest time已关闭", vim.log.levels.INFO)
 	end, { desc = "停止休息提醒" })
+	vim.api.nvim_create_user_command("RestStatus", M.status, { desc = "查看休息提醒状态" })
 	M.start()
 end
 
@@ -96,13 +104,27 @@ function M.start()
 	if type(options.delay) ~= "number" then
 		vim.notify("间隔时间必须是数字", vim.log.levels.ERROR)
 	else
-		vim.defer_fn(check_time, options.delay * 60 * 1000)
+		start_timer(25)
 	end
 end
 
 function M.stop()
 	timer_running = false
 	close_window()
+end
+
+function M.status()
+	if not timer_running then
+		vim.notify("Rest time未启动", vim.log.levels.INFO)
+	else
+		local remaining = target_time - os.time()
+		local minutes = math.floor(remaining / 60)
+		local seconds = remaining % 60
+		vim.notify(
+			string.format("Rest time已启动，距离下次休息还有 %d 分 %d 秒", minutes, seconds),
+			vim.log.levels.INFO
+		)
+	end
 end
 
 return M
